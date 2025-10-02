@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Temple Parking System</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* Custom styles for better aesthetics and animations */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .temple-card-hover {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .temple-card-hover:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <div id="app" class="container mx-auto p-4 sm:p-6 md:p-8">
+        
+        <!-- Header Section -->
+        <header class="bg-white shadow-md rounded-xl mb-8">
+            <div class="container mx-auto px-4 py-6">
+                <h1 class="text-2xl sm:text-3xl font-extrabold text-center text-gray-800">Smart Temple Parking System</h1>
+                <p class="text-center text-gray-500 mt-1">Real-time parking availability for a seamless pilgrimage</p>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <main id="main-content">
+            <!-- Temple Selection View (Initial View) -->
+            <section id="temple-selection-view">
+                <!-- Temple cards will be injected here by JavaScript -->
+            </section>
+
+            <!-- Temple Detail View (Hidden by default) -->
+            <section id="temple-detail-view" class="hidden">
+                <!-- Parking details will be injected here by JavaScript -->
+            </section>
+        </main>
+        
+        <!-- Footer Section -->
+        <footer class="text-center py-6 text-gray-500 text-sm mt-8">
+            <p>&copy; <span id="year"></span> Smart Temple Parking. All Rights Reserved.</p>
+        </footer>
+    </div>
+    
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+
+        // --- MOCK DATA ---
+        const TEMPLES = {
+            'somnath': { id: 'somnath', name: 'Somnath Temple', location: 'Veraval, Gujarat', image: './Somanath_mandir_(cropped).jpg' },
+            'dwarka': { id: 'dwarka', name: 'Dwarkadhish Temple', location: 'Dwarka, Gujarat', image: './Dwarkadhish_Temple_20.jpg' },
+            'ambaji': { id: 'ambaji', name: 'Ambaji Temple', location: 'Ambaji, Gujarat', image: './0081323_Arasuri_Ambaji_mandir,_Shakti_Peeth,_north_Gujarat_037.jpg' },
+            'pavagadh': { id: 'pavagadh', name: 'Pavagadh Temple', location: 'Pavagadh, Gujarat', image: './Jain_Temple,_Pavagadh_(cropped).jpg' },
+        };
+
+        const PARKING_DATA = {
+            'somnath': [
+                { id: 'P1', name: 'Parking Area 1', levels: 3, totalSlotsPerLevel: 50, coords: { lat: 20.8870, lng: 70.4001 } },
+                { id: 'P2', name: 'Parking Area 2', levels: 4, totalSlotsPerLevel: 60, coords: { lat: 20.8905, lng: 70.4025 } },
+            ],
+            'dwarka': [
+                { id: 'P1', name: 'Parking Plaza A', levels: 5, totalSlotsPerLevel: 70, coords: { lat: 22.2391, lng: 68.9665 } },
+                { id: 'P2', name: 'Gomti Ghat Parking', levels: 3, totalSlotsPerLevel: 50, coords: { lat: 22.2375, lng: 68.9690 } },
+            ],
+            'ambaji': [
+                { id: 'P1', name: 'Devi Parking', levels: 3, totalSlotsPerLevel: 40, coords: { lat: 24.3300, lng: 72.8540 } },
+                { id: 'P2', name: 'Gabbar Hill Parking', levels: 2, totalSlotsPerLevel: 80, coords: { lat: 24.3350, lng: 72.8510 } },
+            ],
+            'pavagadh': [
+                { id: 'P1', name: 'Maa Kali Parking', levels: 6, totalSlotsPerLevel: 60, coords: { lat: 22.4625, lng: 73.5190 } },
+                { id: 'P2', name: 'Manchi Haveli Parking', levels: 4, totalSlotsPerLevel: 40, coords: { lat: 22.4600, lng: 73.5175 } },
+            ],
+        };
+
+        // --- DOM Elements ---
+        const templeSelectionView = document.getElementById('temple-selection-view');
+        const templeDetailView = document.getElementById('temple-detail-view');
+        document.getElementById('year').textContent = new Date().getFullYear();
+
+        let userLocation = null;
+        let locationError = null;
+        let slotUpdateInterval = null;
+        let currentSlotsData = {};
+
+        // --- ICONS (Embedded SVG strings) ---
+        const icons = {
+            car: `<svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><path d="M7 17h10"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>`,
+            motorcycle: `<svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="M15 6a1 1 0 0 0-.9-1.4l-3.2.8a1 1 0 0 0-.7.8V14h.1"/><path d="M9 14l3-3 2 4h3"/><path d="M5.5 14h-.1"/></svg>`,
+            mapPin: `<svg class="w-4 h-4 mr-2 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path><circle cx="12" cy="10" r="3"></circle></svg>`,
+            arrowRight: `<svg class="w-6 h-6 text-gray-500 mb-1 mx-auto" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>`,
+            chevronDown: `<svg class="w-6 h-6 text-gray-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>`,
+            chevronUp: `<svg class="w-6 h-6 text-gray-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>`,
+        };
+
+        // --- HELPER FUNCTIONS ---
+        const haversineDistance = (coords1, coords2) => {
+            const toRad = (x) => (x * Math.PI) / 180;
+            const R = 6371; // Earth radius in km
+            const dLat = toRad(coords2.lat - coords1.lat);
+            const dLon = toRad(coords2.lng - coords1.lng);
+            const lat1 = toRad(coords1.lat);
+            const lat2 = toRad(coords2.lat);
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.sin(dLon / 2) * Math.sin(dLon / 2) * Math.cos(lat1) * Math.cos(lat2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return R * c;
+        };
+
+        const generateSlotStatus = (templeId) => {
+            const slotsByArea = {};
+            const parkingAreas = PARKING_DATA[templeId] || [];
+            parkingAreas.forEach(area => {
+                slotsByArea[area.id] = {};
+                for (let i = 0; i < area.levels; i++) {
+                    const levelId = `L${i}`;
+                    slotsByArea[area.id][levelId] = [];
+                    const bikeSlotCount = 10;
+                    for (let j = 0; j < area.totalSlotsPerLevel; j++) {
+                        slotsByArea[area.id][levelId].push({
+                            id: `L${i + 1}-S${j + 1}`,
+                            status: Math.random() > 0.4 ? 'available' : 'occupied',
+                            type: j < bikeSlotCount ? 'bike' : 'car'
+                        });
+                    }
+                }
+            });
+            return slotsByArea;
+        };
+
+        // --- GEOLOCATION ---
+        const getUserLocation = (callback) => {
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        userLocation = { lat: position.coords.latitude, lng: position.coords.longitude };
+                        locationError = null;
+                        callback();
+                    },
+                    (error) => {
+                        console.error("Error getting location:", error.message, "Code:", error.code);
+                        userLocation = null;
+                        if (error.code === 1) { // PERMISSION_DENIED
+                            locationError = "Geolocation is blocked. Please enable location services for this site in your browser settings to see the nearest parking spots first.";
+                        } else {
+                            locationError = "Could not get your location. Parking areas will be shown in default order.";
+                        }
+                        callback();
+                    },
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                );
+            } else {
+                userLocation = null;
+                locationError = "Geolocation is not supported by your browser.";
+                callback();
+            }
+        };
+
+        // --- VIEW SWITCHING & RENDERING ---
+        const showDetailView = () => {
+            templeSelectionView.classList.add('hidden');
+            templeDetailView.classList.remove('hidden');
+        };
+
+        const showSelectionView = () => {
+            templeDetailView.classList.add('hidden');
+            templeSelectionView.classList.remove('hidden');
+            templeDetailView.innerHTML = '';
+            if (slotUpdateInterval) clearInterval(slotUpdateInterval);
+        };
+        
+        const createParkingSlotHTML = (slot) => {
+            const isBike = slot.type === 'bike';
+            const baseClasses = isBike ? "w-14 h-12 md:w-16 md:h-14" : "w-16 h-16 md:w-20 md:h-20";
+            const statusClasses = {
+                available: isBike ? 'bg-blue-200 border-blue-500' : 'bg-green-200 border-green-500',
+                occupied: isBike ? 'bg-gray-300 border-gray-500' : 'bg-red-200 border-red-500',
+            };
+            const iconColorClass = {
+                available: isBike ? 'text-blue-700' : 'text-green-700',
+                occupied: isBike ? 'text-gray-700' : 'text-red-700',
+            };
+            const icon = isBike ? icons.motorcycle : icons.car;
+            
+            return `
+                <div id="slot-${slot.id}" class="rounded-md flex flex-col items-center justify-center transition-all duration-300 transform hover:scale-110 border-2 ${baseClasses} ${statusClasses[slot.status]}">
+                    <div class="${iconColorClass[slot.status]}">${icon}</div>
+                    <span class="mt-1 text-[10px] font-mono font-bold ${slot.status === 'available' ? 'text-gray-700' : 'text-gray-600'}">${slot.id}</span>
+                </div>
+            `;
+        };
+        
+        const renderParkingDetails = (templeId) => {
+            const templeInfo = TEMPLES[templeId];
+            showDetailView();
+            templeDetailView.innerHTML = `<div class="text-center p-10">Loading parking details...</div>`;
+            
+            let parkingAreas = [...PARKING_DATA[templeId]]; // Create a copy
+            if (userLocation) {
+                parkingAreas.forEach(area => area.distance = haversineDistance(userLocation, area.coords));
+                parkingAreas.sort((a, b) => a.distance - b.distance);
+            }
+            
+            currentSlotsData = generateSlotStatus(templeId);
+
+            let detailHTML = `
+                <button id="back-button" class="mb-6 bg-white border border-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-100 transition duration-300 shadow-sm">&larr; Back to Temples</button>
+                <div class="text-center mb-8">
+                    <h2 class="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight">${templeInfo.name} Parking</h2>
+                    <p class="text-lg text-gray-500 mt-2">${templeInfo.location}</p>
+                </div>
+                ${locationError ? `<div class="text-center bg-yellow-100 text-yellow-800 p-3 rounded-lg mb-6 shadow">${locationError}</div>` : ''}
+            `;
+            
+            parkingAreas.forEach((area, index) => {
+                const slotsForArea = currentSlotsData[area.id];
+                const totalAvailable = Object.values(slotsForArea).flat().filter(s => s.status === 'available').length;
+                const totalSlots = Object.values(slotsForArea).flat().length;
+                const isNearest = index === 0 && userLocation !== null;
+                const nextArea = index < parkingAreas.length - 1 ? parkingAreas[index + 1] : null;
+
+                let levelsHTML = '';
+                for (let i = 0; i < area.levels; i++) {
+                    const levelId = `L${i}`;
+                    const levelSlots = slotsForArea[levelId] || [];
+                    const availableInLevel = levelSlots.filter(s => s.status === 'available').length;
+                    const bikeSlotsHTML = levelSlots.filter(s => s.type === 'bike').map(createParkingSlotHTML).join('');
+                    const carSlots = levelSlots.filter(s => s.type === 'car');
+                    let carRowsHTML = '';
+                    for (let j = 0; j < carSlots.length; j += 10) {
+                        carRowsHTML += `<div class="flex justify-start flex-wrap gap-2 sm:gap-3">${carSlots.slice(j, j + 10).map(createParkingSlotHTML).join('')}</div>`;
+                        if (j / 10 % 2 === 1 && j < carSlots.length - 10) {
+                            carRowsHTML += `<div class="h-10 my-2 bg-gray-200 rounded-md flex items-center justify-center text-sm font-bold text-gray-500 tracking-widest">DRIVEWAY</div>`;
+                        }
+                    }
+                    levelsHTML += `
+                        <div class="border border-gray-200 rounded-lg mb-4 shadow-sm overflow-hidden">
+                            <button class="level-toggle-button w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100 focus:outline-none" data-target="level-content-${area.id}-${i}">
+                                <div class="text-left">
+                                    <h4 class="text-lg font-semibold text-gray-800">Level ${i + 1}</h4>
+                                    <p class="text-sm text-gray-600"><span class="font-medium text-green-600">${availableInLevel}</span> Available / ${area.totalSlotsPerLevel} Total</p>
+                                </div>
+                                <span class="chevron-icon">${icons.chevronDown}</span>
+                            </button>
+                            <div id="level-content-${area.id}-${i}" class="p-4 bg-white space-y-4 hidden">
+                                ${bikeSlotsHTML ? `<div><h5 class="text-sm font-semibold text-gray-500 mb-2 border-b pb-1">Bike Parking</h5><div class="flex flex-wrap gap-2">${bikeSlotsHTML}</div></div>` : ''}
+                                ${carRowsHTML ? `<div><h5 class="text-sm font-semibold text-gray-500 mb-2 mt-4 border-b pb-1">Car Parking</h5><div class="space-y-2">${carRowsHTML}</div></div>` : ''}
+                            </div>
+                        </div>`;
+                }
+
+                detailHTML += `
+                    <div class="bg-white rounded-xl shadow-lg p-6 mb-6 border-2 ${isNearest ? 'border-yellow-400' : 'border-transparent'}">
+                        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4">
+                            <div>
+                                <div class="flex items-center gap-3">
+                                    <h3 class="text-xl sm:text-2xl font-bold text-gray-900">${area.name}</h3>
+                                    ${isNearest ? `<span class="text-xs font-bold bg-yellow-300 text-yellow-800 px-2 py-1 rounded-full">⭐ NEAREST</span>` : ''}
+                                </div>
+                                <p class="text-md text-gray-500">${area.levels} Levels | ${totalSlots} Total Slots</p>
+                                ${area.distance ? `<p class="text-sm font-medium text-blue-600 mt-1">Approx. ${area.distance.toFixed(2)} km away</p>` : ''}
+                            </div>
+                            <div class="mt-4 md:mt-0 p-3 bg-green-100 rounded-lg text-center">
+                                <p class="text-green-800 font-bold text-3xl">${totalAvailable}</p>
+                                <p class="text-green-600 text-sm">Available Slots</p>
+                            </div>
+                        </div>
+                        ${levelsHTML}
+                        <div class="mt-6">
+                           <a href="https://www.google.com/maps/dir/?api=1&destination=${area.coords.lat},${area.coords.lng}" target="_blank" rel="noopener noreferrer" class="w-full text-center bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-blue-700 transition duration-300 flex items-center justify-center gap-2">
+                                <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg> Directions to this Parking
+                            </a>
+                        </div>
+                    </div>
+                    ${nextArea ? `<div class="flex justify-center items-center my-8"><div class="w-full h-px bg-gray-300"></div><div class="mx-4 text-center">${icons.arrowRight}<a href="https://www.google.com/maps/dir/?api=1&origin=${area.coords.lat},${area.coords.lng}&destination=${nextArea.coords.lat},${nextArea.coords.lng}" target="_blank" rel="noopener noreferrer" class="text-sm text-blue-600 hover:underline whitespace-nowrap">Directions to ${nextArea.name}</a></div><div class="w-full h-px bg-gray-300"></div></div>` : ''}
+                `;
+            });
+            templeDetailView.innerHTML = detailHTML;
+
+            // Start polling for slot updates
+            slotUpdateInterval = setInterval(() => {
+                 const updatedSlots = generateSlotStatus(templeId);
+                 Object.keys(updatedSlots).forEach(areaId => {
+                     Object.keys(updatedSlots[areaId]).forEach(levelId => {
+                         updatedSlots[areaId][levelId].forEach(slot => {
+                             const oldSlot = currentSlotsData[areaId][levelId].find(s => s.id === slot.id);
+                             if (oldSlot && oldSlot.status !== slot.status) {
+                                 const slotElement = document.getElementById(`slot-${slot.id}`);
+                                 if(slotElement) slotElement.outerHTML = createParkingSlotHTML(slot);
+                             }
+                         });
+                     });
+                 });
+                 currentSlotsData = updatedSlots;
+            }, 2500);
+        };
+
+        const renderTempleSelection = () => {
+            const templeCardsHTML = Object.values(TEMPLES).map(temple => `
+                <div class="bg-white rounded-xl shadow-lg overflow-hidden cursor-pointer group temple-card-hover" data-temple-id="${temple.id}">
+                    <div class="relative">
+                        <img class="w-full h-48 object-cover" src="${temple.image}" alt="${temple.name}" onerror="this.onerror=null;this.src='https://placehold.co/600x400?text=Image+Not+Found';">
+                        <div class="absolute inset-0 bg-black bg-opacity-20 group-hover:bg-opacity-40 transition-all duration-300"></div>
+                    </div>
+                    <div class="p-6">
+                        <h3 class="text-xl font-bold text-gray-900">${temple.name}</h3>
+                        <p class="text-gray-600 mt-1 flex items-center">${icons.mapPin} ${temple.location}</p>
+                    </div>
+                </div>
+            `).join('');
+            templeSelectionView.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">${templeCardsHTML}</div>`;
+        };
+
+        // --- EVENT LISTENERS ---
+        templeSelectionView.addEventListener('click', (e) => {
+            const card = e.target.closest('.temple-card-hover');
+            if (card) {
+                renderParkingDetails(card.dataset.templeId);
+            }
+        });
+
+        templeDetailView.addEventListener('click', (e) => {
+            if (e.target.closest('#back-button')) {
+                showSelectionView();
+            }
+            const toggleButton = e.target.closest('.level-toggle-button');
+            if (toggleButton) {
+                const target = document.getElementById(toggleButton.dataset.target);
+                const chevron = toggleButton.querySelector('.chevron-icon');
+                target.classList.toggle('hidden');
+                chevron.innerHTML = target.classList.contains('hidden') ? icons.chevronDown : icons.chevronUp;
+            }
+        });
+
+        // --- INITIALIZATION ---
+        getUserLocation(() => {
+            renderTempleSelection(); // Render temple cards after attempting to get location
+        });
+    });
+    </script>
+</body>
+</html>
